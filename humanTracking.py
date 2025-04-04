@@ -259,12 +259,13 @@ html("""
       display: block;
     }
     #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
       padding: 10px;
-      background-color: #121212;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-around;
+      border-radius: 8px;
+      z-index: 10;
     }
     button {
       background-color: #1f1f1f;
@@ -329,9 +330,7 @@ html("""
 </head>
 <body>
   <div id="appContainer">
-    <div id="canvasContainer">
-      <canvas id="trackingCanvas"></canvas>
-    </div>
+    <canvas id="trackingCanvas"></canvas>
     <div id="controls">
       <button id="connectBleButton">Connect to BLE Device</button>
       <button id="disconnectBleButton">Disconnect</button>
@@ -340,12 +339,14 @@ html("""
         <span class="slider round"></span>
       </label>
       <p>Last value sent: <span id="valueSent"></span></p>
-      <span>BLE state: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></span>
-      <span><span class="value-label">X:</span><span id="valX">NaN</span></span>
-      <span><span class="value-label">Y:</span><span id="valY">NaN</span></span>
-      <span><span class="value-label">Speed:</span><span id="valSpeed">NaN</span></span>
-      <span><span class="value-label">Distance:</span><span id="valDistance">NaN</span></span>
-      <span><span class="value-label">Last Reading:</span><span id="valTime">--:--:--</span></span>
+      <div>
+        <span>BLE state: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></span><br>
+        <span><span class="value-label">X:</span><span id="valX">NaN</span></span>
+        <span><span class="value-label">Y:</span><span id="valY">NaN</span></span>
+        <span><span class="value-label">Speed:</span><span id="valSpeed">NaN</span></span>
+        <span><span class="value-label">Distance:</span><span id="valDistance">NaN</span></span>
+        <span><span class="value-label">Last Reading:</span><span id="valTime">--:--:--</span></span>
+      </div>
     </div>
   </div>
   <script>
