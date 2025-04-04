@@ -225,20 +225,41 @@ import plotly.graph_objects as go
 import pandas as pd
 import time
 import json
-import os
+from pathlib import Path
 
 st.set_page_config(page_title="Human-Tracking", layout="wide")
 st.title("Human-Tracking")
 
+# File to store BLE data
+json_path = Path("ble_data.json")
+
+# Save new BLE data to JSON file
+def save_ble_data(entry):
+    if json_path.exists():
+        try:
+            with open(json_path, "r") as f:
+                data = json.load(f)
+        except json.JSONDecodeError:
+            data = []
+    else:
+        data = []
+
+    data.append(entry)
+    with open(json_path, "w") as f:
+        json.dump(data, f)
+
+# Load BLE data from JSON file
+def load_ble_data():
+    if json_path.exists():
+        try:
+            with open(json_path, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return []
+    return []
+
+# Tabs
 tabs = st.tabs(["BLE Interface", "Graphical Tracking"])
-
-# Shared JSON file path
-data_file = "ble_data.json"
-
-# Ensure the file exists
-if not os.path.exists(data_file):
-    with open(data_file, "w") as f:
-        json.dump([], f)
 
 with tabs[0]:
     html("""
@@ -340,10 +361,10 @@ with tabs[0]:
             distanceContainer.textContent = distance;
             timestampContainer.textContent = new Date().toLocaleTimeString();
 
-            fetch("/ble_update", {
+            fetch("/ble-data", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ x, y, speed, distance, time: Date.now() })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ x, y, speed, distance, time: Date.now() / 1000 })
             });
         }
       </script>
@@ -353,22 +374,18 @@ with tabs[0]:
 
 with tabs[1]:
     st.header("Live Target Tracking")
-    try:
-        with open(data_file, "r") as f:
-            data = json.load(f)
-        if data:
-            df = pd.DataFrame(data)
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=df['x'], y=df['y'], mode='markers+lines', name='Target Path'))
-            fig.update_layout(
-                xaxis_title='X Position',
-                yaxis_title='Y Position',
-                title='Live Movement Graph',
-                template='plotly_dark',
-                height=600
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No data in JSON file yet.")
-    except Exception as e:
-        st.error(f"Error loading data: {e}")
+    ble_data = load_ble_data()
+    if ble_data:
+        df = pd.DataFrame(ble_data)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df['x'], y=df['y'], mode='markers+lines', name='Target Path'))
+        fig.update_layout(
+            xaxis_title='X Position',
+            yaxis_title='Y Position',
+            title='Live Movement Graph',
+            template='plotly_dark',
+            height=600
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No data in JSON file yet. Connect BLE device to begin tracking.")
