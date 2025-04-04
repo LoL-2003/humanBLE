@@ -5,13 +5,26 @@ st.set_page_config(page_title="Human-Tracking", layout="centered")
 
 st.title("Human-Tracking")
 
-# Embed your full HTML + JS here using triple quotes
 html("""
 <!DOCTYPE html>
 <html>
 <head>
     <title>ESP32 Web BLE App</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        footer:after {
+            content: 'Made with ❤️ by ADITYA PURI';
+            visibility: visible;
+            display: block;
+        }
+        .st-emotion-cache-cio0dv {
+            padding-left: 20%;
+            padding-right: 1rem;
+        }
+        header {visibility: hidden;}
+    </style>
 </head>
 <body>
   <h3>ESP32 Web BLE Application</h3>
@@ -25,8 +38,8 @@ html("""
   <button id="onButton">ON</button>
   <button id="offButton">OFF</button>
   <p>Last value sent: <span id="valueSent"></span></p>
-</body>
-<script>
+
+  <script>
     const connectButton = document.getElementById('connectBleButton');
     const disconnectButton = document.getElementById('disconnectBleButton');
     const onButton = document.getElementById('onButton');
@@ -36,17 +49,17 @@ html("""
     const bleStateContainer = document.getElementById('bleState');
     const timestampContainer = document.getElementById('timestamp');
 
-    var deviceName ='ESP32';
-    var bleService = '19b10000-e8f2-537e-4f6c-d104768a1214';
-    var ledCharacteristic = '19b10002-e8f2-537e-4f6c-d104768a1214';
-    var sensorCharacteristic= '19b10001-e8f2-537e-4f6c-d104768a1214';
+    const deviceName = 'ESP32';
+    const bleService = '19b10000-e8f2-537e-4f6c-d104768a1214';
+    const ledCharacteristic = '19b10002-e8f2-537e-4f6c-d104768a1214';
+    const sensorCharacteristic = '19b10001-e8f2-537e-4f6c-d104768a1214';
 
-    var bleServer;
-    var bleServiceFound;
-    var sensorCharacteristicFound;
+    let bleServer = null;
+    let bleServiceFound = null;
+    let sensorCharacteristicFound = null;
 
-    connectButton.addEventListener('click', (event) => {
-        if (isWebBluetoothEnabled()){
+    connectButton.addEventListener('click', () => {
+        if (isWebBluetoothEnabled()) {
             connectToDevice();
         }
     });
@@ -58,23 +71,23 @@ html("""
     function isWebBluetoothEnabled() {
         if (!navigator.bluetooth) {
             bleStateContainer.innerHTML = "Web Bluetooth API is not available in this browser!";
-            return false
+            return false;
         }
-        return true
+        return true;
     }
 
-    function connectToDevice(){
+    function connectToDevice() {
         navigator.bluetooth.requestDevice({
-            filters: [{name: deviceName}],
+            filters: [{ name: deviceName }],
             optionalServices: [bleService]
         })
         .then(device => {
             bleStateContainer.innerHTML = 'Connected to device ' + device.name;
             bleStateContainer.style.color = "#24af37";
-            device.addEventListener('gattservicedisconnected', onDisconnected);
+            device.addEventListener('gattserverdisconnected', onDisconnected);
             return device.gatt.connect();
         })
-        .then(gattServer =>{
+        .then(gattServer => {
             bleServer = gattServer;
             return bleServer.getPrimaryService(bleService);
         })
@@ -93,37 +106,38 @@ html("""
             retrievedValue.innerHTML = decodedValue;
         })
         .catch(error => {
-            console.log('Error: ', error);
-        })
+            console.error('Error:', error);
+            bleStateContainer.innerHTML = 'Connection error: ' + error.message;
+        });
     }
 
-    function onDisconnected(event){
+    function onDisconnected(event) {
         bleStateContainer.innerHTML = "Device disconnected";
         bleStateContainer.style.color = "#d13a30";
-        connectToDevice();
     }
 
-    function handleCharacteristicChange(event){
+    function handleCharacteristicChange(event) {
         const newValueReceived = new TextDecoder().decode(event.target.value);
         retrievedValue.innerHTML = newValueReceived;
         timestampContainer.innerHTML = getDateTime();
     }
 
-    function writeOnCharacteristic(value){
+    function writeOnCharacteristic(value) {
         if (bleServer && bleServer.connected) {
             bleServiceFound.getCharacteristic(ledCharacteristic)
-            .then(characteristic => {
-                const data = new Uint8Array([value]);
-                return characteristic.writeValue(data);
-            })
-            .then(() => {
-                latestValueSent.innerHTML = value;
-            })
-            .catch(error => {
-                console.error("Error writing to characteristic: ", error);
-            });
+                .then(characteristic => {
+                    const data = new Uint8Array([value]);
+                    return characteristic.writeValue(data);
+                })
+                .then(() => {
+                    latestValueSent.innerHTML = value;
+                })
+                .catch(error => {
+                    console.error("Error writing to characteristic:", error);
+                    alert("Write error: " + error.message);
+                });
         } else {
-            window.alert("Bluetooth is not connected. Connect to BLE first!")
+            alert("Bluetooth is not connected. Connect to BLE first!");
         }
     }
 
@@ -137,35 +151,26 @@ html("""
                         bleStateContainer.style.color = "#d13a30";
                     })
                     .catch(error => {
-                        console.log("An error occurred:", error);
+                        console.error("Error during disconnect:", error);
+                        alert("Disconnect error: " + error.message);
                     });
             }
         } else {
-            window.alert("Bluetooth is not connected.")
+            alert("Bluetooth is not connected.");
         }
     }
 
     function getDateTime() {
-        var currentdate = new Date();
-        var day = ("00" + currentdate.getDate()).slice(-2);
-        var month = ("00" + (currentdate.getMonth() + 1)).slice(-2);
-        var year = currentdate.getFullYear();
-        var hours = ("00" + currentdate.getHours()).slice(-2);
-        var minutes = ("00" + currentdate.getMinutes()).slice(-2);
-        var seconds = ("00" + currentdate.getSeconds()).slice(-2);
-
-        return day + "/" + month + "/" + year + " at " + hours + ":" + minutes + ":" + seconds;
+        const currentdate = new Date();
+        const day = ("00" + currentdate.getDate()).slice(-2);
+        const month = ("00" + (currentdate.getMonth() + 1)).slice(-2);
+        const year = currentdate.getFullYear();
+        const hours = ("00" + currentdate.getHours()).slice(-2);
+        const minutes = ("00" + currentdate.getMinutes()).slice(-2);
+        const seconds = ("00" + currentdate.getSeconds()).slice(-2);
+        return `${day}/${month}/${year} at ${hours}:${minutes}:${seconds}`;
     }
-</script>
+  </script>
+</body>
 </html>
-<style>
-             #MainMenu {visibility: hidden;}
-             footer {visibility: hidden;}
-             footer:after {content:'Made with ❤️ by ADITYA PURI';visibility: visible;display: block;}
-             .st-emotion-cache-cio0dv {
-             padding-left: 20%;
-             padding-right: 1rem;
-             }
-             header {visibility: hidden;}
-              </style>
 """, height=800)
