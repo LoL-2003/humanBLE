@@ -225,9 +225,9 @@ from streamlit_js_eval import streamlit_js_eval
 import plotly.graph_objects as go
 import pandas as pd
 import time
+import json
 
 st.set_page_config(page_title="Human-Tracking", layout="wide")
-
 st.title("Human-Tracking")
 
 tabs = st.tabs(["BLE Interface", "Graphical Tracking"])
@@ -238,6 +238,18 @@ if 'data' not in st.session_state:
 
 with tabs[0]:
     html("""
+    <script>
+    window.addEventListener("message", (event) => {
+        if (event.data?.type === "ble_data") {
+            const payload = event.data;
+            const pybridge = window.parent?.streamlitWebSocket;
+            if (pybridge) {
+                pybridge.send(JSON.stringify({ type: "streamlit:ble_data", data: payload }));
+            }
+        }
+    });
+    </script>
+    
     <!DOCTYPE html>
     <html>
     <head>
@@ -343,44 +355,18 @@ with tabs[0]:
     </html>
     """, height=800)
 
-# Listen for BLE data using streamlit_js_eval
-streamlit_js_eval(
-    js_expressions="""
-    await new Promise(resolve => {
-        window.addEventListener("message", (event) => {
-            if (event.data?.type === "ble_data") {
-                const payload = event.data;
-                const pybridge = window.parent?.streamlitWebSocket;
-                if (pybridge) {
-                    pybridge.send(JSON.stringify({ type: "streamlit:ble_data", data: payload }));
-                }
-                resolve(true);
-            }
-        }, { once: true });
-    })
-    """,
-    key="ble_data_listener"
-)
-
-# Handle incoming BLE data
-from streamlit.runtime.scriptrunner import get_script_run_ctx
-ctx = get_script_run_ctx()
-if hasattr(ctx, '_widget_states'):
-    import json
-    raw = ctx._widget_states.get("ble_data_listener")
-    if raw and isinstance(raw, str):
-        try:
-            parsed = json.loads(raw)
-            if 'data' in parsed:
-                st.session_state.data.append({
-                    'time': time.time(),
-                    'x': parsed['data']['x'],
-                    'y': parsed['data']['y'],
-                    'speed': parsed['data']['speed'],
-                    'distance': parsed['data']['distance']
-                })
-        except json.JSONDecodeError:
-            pass
+# Receive messages from JS via session_state updates
+data_raw = st.session_state.get("ble_data_listener")
+if data_raw and isinstance(data_raw, dict):
+    payload = data_raw.get("data")
+    if payload:
+        st.session_state.data.append({
+            'time': time.time(),
+            'x': payload.get('x', 0),
+            'y': payload.get('y', 0),
+            'speed': payload.get('speed', 0),
+            'distance': payload.get('distance', 0)
+        })
 
 with tabs[1]:
     st.header("Live Target Tracking")
