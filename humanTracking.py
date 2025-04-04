@@ -255,10 +255,27 @@ html("""
       color: #03dac6;
       margin-right: 10px;
     }
+    button {
+      background-color: #1f1f1f;
+      color: #ffffff;
+      border: 1px solid #444;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    button:hover {
+      background-color: #333333;
+    }
+    .status-connected { color: #66bb6a; }
+    .status-disconnected { color: #ef5350; }
   </style>
 </head>
 <body>
   <h2>Live Target Tracking (Graphical)</h2>
+  <button id="connectBleButton">Connect to BLE Device</button>
+  <p>BLE state: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></p>
   <canvas id="trackingCanvas" width="600" height="400"></canvas>
   <div id="values">
     <p><span class="value-label">X:</span> <span id="valX">NaN</span></p>
@@ -276,8 +293,15 @@ html("""
     const valSpeed = document.getElementById('valSpeed');
     const valDistance = document.getElementById('valDistance');
     const valTime = document.getElementById('valTime');
+    const bleStateContainer = document.getElementById('bleState');
+    const connectButton = document.getElementById('connectBleButton');
 
     let path = [];
+    let bleDevice, bleServer, bleService, sensorCharacteristic;
+
+    const deviceName = 'ESP32';
+    const bleServiceUUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
+    const sensorCharacteristicUUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
 
     function drawPoint(x, y) {
       ctx.fillStyle = '#03dac6';
@@ -304,20 +328,63 @@ html("""
       }
     }
 
-    window.addEventListener("message", (event) => {
-      if (event.data && event.data.type === "ble_data") {
-        const { x, y, speed, distance } = event.data;
-        path.push({ x, y });
-        if (path.length > 50) path.shift();
-        drawPath();
-
-        valX.textContent = x;
-        valY.textContent = y;
-        valSpeed.textContent = speed;
-        valDistance.textContent = distance;
-        valTime.textContent = new Date().toLocaleTimeString();
+    async function connectToDevice() {
+      if (!navigator.bluetooth) {
+        alert("Web Bluetooth API is not available in this browser!");
+        return;
       }
-    });
+
+      try {
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ name: deviceName }],
+          optionalServices: [bleServiceUUID]
+        });
+
+        bleDevice.addEventListener('gattserverdisconnected', () => {
+          bleStateContainer.textContent = "Device disconnected";
+          bleStateContainer.classList.remove('status-connected');
+          bleStateContainer.classList.add('status-disconnected');
+        });
+
+        bleServer = await bleDevice.gatt.connect();
+        bleService = await bleServer.getPrimaryService(bleServiceUUID);
+        sensorCharacteristic = await bleService.getCharacteristic(sensorCharacteristicUUID);
+
+        sensorCharacteristic.addEventListener('characteristicvaluechanged', handleData);
+        await sensorCharacteristic.startNotifications();
+
+        bleStateContainer.textContent = 'Connected to ' + bleDevice.name;
+        bleStateContainer.classList.remove('status-disconnected');
+        bleStateContainer.classList.add('status-connected');
+
+      } catch (error) {
+        console.error('Connection Error:', error);
+        alert("Failed to connect: " + error.message);
+        bleStateContainer.textContent = 'Disconnected';
+      }
+    }
+
+    async function handleData(event) {
+      const buffer = event.target.value.buffer;
+      const dataView = new DataView(buffer);
+
+      const x = dataView.getInt32(0, true);
+      const y = dataView.getInt32(4, true);
+      const speed = dataView.getInt8(8);
+      const distance = dataView.getUint16(10, true);
+
+      path.push({ x, y });
+      if (path.length > 50) path.shift();
+      drawPath();
+
+      valX.textContent = x;
+      valY.textContent = y;
+      valSpeed.textContent = speed;
+      valDistance.textContent = distance;
+      valTime.textContent = new Date().toLocaleTimeString();
+    }
+
+    connectButton.addEventListener('click', connectToDevice);
   </script>
 </body>
 </html>
