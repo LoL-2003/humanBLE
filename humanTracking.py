@@ -157,10 +157,12 @@ html("""
         const buffer = event.target.value.buffer;
         const dataView = new DataView(buffer);
 
+        let dataView = new DataView(sensorArray.buffer);
         let x = dataView.getInt32(0, true);
         let y = dataView.getInt32(4, true);
-        let speed = dataView.getUint8(8);
-        let distance = dataView.getUint16(9, true);
+        let speed = dataView.getUint8(8);  // Speed is 1 byte (0-16)
+        let distance = dataView.getUint16(9, true);  // Distance is 2 bytes
+
 
         xValueContainer.textContent = x;
         yValueContainer.textContent = y;
