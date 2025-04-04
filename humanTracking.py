@@ -155,7 +155,7 @@ async function handleData(event) {
     const dataView = new DataView(buffer);
     const rawData = new Uint8Array(buffer);
 
-    console.log("Raw Data Received:", rawData);
+    //console.log("Raw Data Received:", rawData);
 
     let x = dataView.getInt32(0, true);   // 4 bytes (Little-Endian)
     let y = dataView.getInt32(4, true);   // 4 bytes (Little-Endian)
@@ -188,7 +188,7 @@ async function handleData(event) {
             const characteristic = await bleService.getCharacteristic(ledCharacteristicUUID);
             await characteristic.writeValue(new Uint8Array([value]));
             latestValueSent.textContent = value;
-            console.log("Value sent:", value);
+            //console.log("Value sent:", value);
         } catch (error) {
             console.error("Write Error:", error);
             alert("Failed to send data: " + error.message);
