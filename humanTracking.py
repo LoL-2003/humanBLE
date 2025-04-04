@@ -221,196 +221,109 @@
 
 import streamlit as st
 from streamlit.components.v1 import html
-import plotly.graph_objects as go
-import pandas as pd
-import time
-import json
-from pathlib import Path
 
-st.set_page_config(page_title="Human-Tracking", layout="wide")
+st.set_page_config(page_title="Human-Tracking", layout="centered")
+
 st.title("Human-Tracking")
 
-# File to store BLE data
-json_path = Path("ble_data.json")
+html("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graphical BLE Data Display</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #1e1e1e;
+      color: white;
+      padding: 20px;
+    }
+    h2 {
+      color: #03dac6;
+    }
+    canvas {
+      background: #2c2c2c;
+      border: 1px solid #555;
+    }
+    #values {
+      margin-top: 20px;
+      font-size: 16px;
+    }
+    .value-label {
+      color: #03dac6;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Live Target Tracking (Graphical)</h2>
+  <canvas id="trackingCanvas" width="600" height="400"></canvas>
+  <div id="values">
+    <p><span class="value-label">X:</span> <span id="valX">NaN</span></p>
+    <p><span class="value-label">Y:</span> <span id="valY">NaN</span></p>
+    <p><span class="value-label">Speed:</span> <span id="valSpeed">NaN</span></p>
+    <p><span class="value-label">Distance:</span> <span id="valDistance">NaN</span></p>
+    <p><span class="value-label">Last Reading:</span> <span id="valTime">--:--:--</span></p>
+  </div>
 
-# Save new BLE data to JSON file
-def save_ble_data(entry):
-    if json_path.exists():
-        try:
-            with open(json_path, "r") as f:
-                data = json.load(f)
-        except json.JSONDecodeError:
-            data = []
-    else:
-        data = []
+  <script>
+    const canvas = document.getElementById('trackingCanvas');
+    const ctx = canvas.getContext('2d');
+    const valX = document.getElementById('valX');
+    const valY = document.getElementById('valY');
+    const valSpeed = document.getElementById('valSpeed');
+    const valDistance = document.getElementById('valDistance');
+    const valTime = document.getElementById('valTime');
 
-    data.append(entry)
-    with open(json_path, "w") as f:
-        json.dump(data, f)
+    let path = [];
 
-# Load BLE data from JSON file
-def load_ble_data():
-    if json_path.exists():
-        try:
-            with open(json_path, "r") as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            return []
-    return []
+    function drawPoint(x, y) {
+      ctx.fillStyle = '#03dac6';
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-# Serve data endpoint
-import streamlit.web.server.websocket_headers
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from starlette.middleware.cors import CORSMiddleware
-from streamlit.web.server import Server
+    function drawPath() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
+      ctx.strokeStyle = '#bb86fc';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < path.length; i++) {
+        const point = path[i];
+        const scaledX = canvas.width / 2 + point.x;
+        const scaledY = canvas.height / 2 - point.y;
+        if (i === 0) ctx.moveTo(scaledX, scaledY);
+        else ctx.lineTo(scaledX, scaledY);
+      }
+      ctx.stroke();
+      for (const point of path) {
+        drawPoint(canvas.width / 2 + point.x, canvas.height / 2 - point.y);
+      }
+    }
 
-app = FastAPI()
+    window.addEventListener("message", (event) => {
+      if (event.data && event.data.type === "ble_data") {
+        const { x, y, speed, distance } = event.data;
+        path.push({ x, y });
+        if (path.length > 50) path.shift();
+        drawPath();
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+        valX.textContent = x;
+        valY.textContent = y;
+        valSpeed.textContent = speed;
+        valDistance.textContent = distance;
+        valTime.textContent = new Date().toLocaleTimeString();
+      }
+    });
+  </script>
+</body>
+</html>
+""", height=800)
 
-@app.post("/ble-data")
-async def ble_data_handler(request: Request):
-    body = await request.json()
-    save_ble_data(body)
-    return JSONResponse(content={"status": "success"})
 
-Server.get_current()._main_app.mount("/ble-data", app)
 
-# Tabs
-tabs = st.tabs(["BLE Interface", "Graphical Tracking"])
 
-with tabs[0]:
-    html("""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>ESP32 Web BLE App</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-            body {
-                background-color: #121212;
-                color: #e0e0e0;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                padding: 20px;
-            }
-            button {
-                background-color: #1f1f1f;
-                color: #ffffff;
-                border: 1px solid #444;
-                padding: 10px 20px;
-                margin: 5px;
-                border-radius: 6px;
-                cursor: pointer;
-                transition: background 0.3s ease;
-            }
-            button:hover { background-color: #333333; }
-            .status-connected { color: #66bb6a; }
-            .status-disconnected { color: #ef5350; }
-        </style>
-    </head>
-    <body>
-      <h3>ESP32 Web BLE Application</h3>
-      <button id="connectBleButton">Connect to BLE Device</button>
-      <button id="disconnectBleButton">Disconnect BLE Device</button>
-      <p>BLE state: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></p>
 
-      <h4>Fetched Values</h4>
-      <p>X: <span id="xValue">NaN</span></p>
-      <p>Y: <span id="yValue">NaN</span></p>
-      <p>Speed: <span id="speedValue">NaN</span></p>
-      <p>Distance: <span id="distanceValue">NaN</span></p>
-      <p>Last reading: <span id="timestamp"></span></p>
-
-      <script>
-        const connectButton = document.getElementById('connectBleButton');
-        const disconnectButton = document.getElementById('disconnectBleButton');
-        const bleStateContainer = document.getElementById('bleState');
-        const xContainer = document.getElementById('xValue');
-        const yContainer = document.getElementById('yValue');
-        const speedContainer = document.getElementById('speedValue');
-        const distanceContainer = document.getElementById('distanceValue');
-        const timestampContainer = document.getElementById('timestamp');
-
-        const bleServiceUUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
-        const sensorCharacteristicUUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
-
-        let bleDevice = null;
-        let sensorCharacteristic = null;
-
-        connectButton.addEventListener('click', async () => {
-            try {
-                bleDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'ESP32' }],
-                    optionalServices: [bleServiceUUID]
-                });
-
-                const server = await bleDevice.gatt.connect();
-                const service = await server.getPrimaryService(bleServiceUUID);
-                sensorCharacteristic = await service.getCharacteristic(sensorCharacteristicUUID);
-                await sensorCharacteristic.startNotifications();
-                sensorCharacteristic.addEventListener('characteristicvaluechanged', handleData);
-
-                bleStateContainer.textContent = 'Connected';
-                bleStateContainer.className = 'status-connected';
-            } catch (error) {
-                alert("Connection failed: " + error);
-            }
-        });
-
-        disconnectButton.addEventListener('click', () => {
-            if (bleDevice && bleDevice.gatt.connected) {
-                bleDevice.gatt.disconnect();
-                bleStateContainer.textContent = 'Disconnected';
-                bleStateContainer.className = 'status-disconnected';
-            }
-        });
-
-        function handleData(event) {
-            const buffer = event.target.value.buffer;
-            const dataView = new DataView(buffer);
-            const x = dataView.getInt32(0, true);
-            const y = dataView.getInt32(4, true);
-            const speed = dataView.getInt8(8);
-            const distance = dataView.getUint16(10, true);
-
-            xContainer.textContent = x;
-            yContainer.textContent = y;
-            speedContainer.textContent = speed;
-            distanceContainer.textContent = distance;
-            timestampContainer.textContent = new Date().toLocaleTimeString();
-
-            fetch("/ble-data", {
-                method: "POST",
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ x, y, speed, distance, time: Date.now() / 1000 })
-            });
-        }
-      </script>
-    </body>
-    </html>
-    """, height=800)
-
-with tabs[1]:
-    st.header("Live Target Tracking")
-    ble_data = load_ble_data()
-    if ble_data:
-        df = pd.DataFrame(ble_data)
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=df['x'], y=df['y'], mode='markers+lines', name='Target Path'))
-        fig.update_layout(
-            xaxis_title='X Position',
-            yaxis_title='Y Position',
-            title='Live Movement Graph',
-            template='plotly_dark',
-            height=600
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No data in JSON file yet. Connect BLE device to begin tracking.")
