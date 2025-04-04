@@ -493,13 +493,17 @@
 
 
 import streamlit as st
+import math
 from streamlit.components.v1 import html
 
-st.set_page_config(page_title="Human-Tracking", layout="wide")
+st.set_page_config(page_title="Human-Tracking", layout="centered")
 
-st.title("Human-Tracking Interface")
+st.title("Human-Tracking")
 
-html("""
+# Add a toggle button for enabling/disabling tracking
+tracking_enabled = st.toggle("Enable Tracking", value=True)
+
+html(f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -507,7 +511,7 @@ html("""
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Graphical BLE Data Display</title>
   <style>
-    html, body {
+    html, body {{
       margin: 0;
       padding: 0;
       width: 100%;
@@ -515,23 +519,23 @@ html("""
       background-color: #1e1e1e;
       color: white;
       font-family: Arial, sans-serif;
-    }
-    #appContainer {
+    }}
+    #appContainer {{
       display: flex;
       flex-direction: column;
       height: 100vh;
       width: 100vw;
-    }
-    #canvasContainer {
+    }}
+    #canvasContainer {{
       flex-grow: 1;
-    }
-    canvas {
+    }}
+    canvas {{
       width: 100vw;
       height: 100vh;
       background: #2c2c2c;
       display: block;
-    }
-    #controls {
+    }}
+    #controls {{
       position: absolute;
       top: 10px;
       left: 10px;
@@ -539,26 +543,43 @@ html("""
       padding: 10px;
       border-radius: 8px;
       z-index: 10;
-    }
-    .status-connected { color: #66bb6a; }
-    .status-disconnected { color: #ef5350; }
-    .value-label { color: #03dac6; margin-right: 5px; }
+    }}
+    button {{
+      background-color: #1f1f1f;
+      color: #ffffff;
+      border: 1px solid #444;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }}
+    button:hover {{
+      background-color: #333333;
+    }}
+    .status-connected {{ color: #66bb6a; }}
+    .status-disconnected {{ color: #ef5350; }}
+    .value-label {{ color: #03dac6; margin-right: 5px; }}
   </style>
 </head>
 <body>
   <div id="appContainer">
     <canvas id="trackingCanvas"></canvas>
     <div id="controls">
-      <button id="connectBleButton">Connect to BLE</button>
+      <button id="connectBleButton">Connect to BLE Device</button>
       <button id="disconnectBleButton">Disconnect</button>
-      <p>BLE Status: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></p>
-      <p><span class="value-label">X:</span><span id="valX">NaN</span></p>
-      <p><span class="value-label">Y:</span><span id="valY">NaN</span></p>
-      <p><span class="value-label">Speed:</span><span id="valSpeed">NaN</span></p>
-      <p><span class="value-label">Distance:</span><span id="valDistance">NaN</span></p>
+      <p>Last value sent: <span id="valueSent"></span></p>
+      <div>
+        <span>BLE state: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></span><br>
+        <span><span class="value-label">X:</span><span id="valX">NaN</span></span>
+        <span><span class="value-label">Y:</span><span id="valY">NaN</span></span>
+        <span><span class="value-label">Speed:</span><span id="valSpeed">NaN</span></span>
+        <span><span class="value-label">Distance:</span><span id="valDistance">NaN</span></span>
+        <span><span class="value-label">Angle:</span><span id="valAngle">NaN°</span></span>
+        <span><span class="value-label">Last Reading:</span><span id="valTime">--:--:--</span></span>
+      </div>
     </div>
   </div>
-
   <script>
     const canvas = document.getElementById('trackingCanvas');
     const ctx = canvas.getContext('2d');
@@ -566,111 +587,109 @@ html("""
     const valY = document.getElementById('valY');
     const valSpeed = document.getElementById('valSpeed');
     const valDistance = document.getElementById('valDistance');
+    const valAngle = document.getElementById('valAngle');
+    const valTime = document.getElementById('valTime');
     const bleStateContainer = document.getElementById('bleState');
     const connectButton = document.getElementById('connectBleButton');
     const disconnectButton = document.getElementById('disconnectBleButton');
 
     let previousPoint = null;
     let bleDevice, bleServer, bleService, sensorCharacteristic;
+    
     const deviceName = 'ESP32';
     const bleServiceUUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
     const sensorCharacteristicUUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
 
-    function resizeCanvas() {
+    function resizeCanvas() {{
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-    }
+    }}
+
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    function drawPoint(x, y, color = '#03dac6', radius = 5) {
+    function drawPoint(x, y, color = '#03dac6', radius = 5) {{
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
-    }
+    }}
 
-    function drawSensorOrigin() {
+    function drawSensorOrigin() {{
       const originSize = 10;
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
       ctx.fillStyle = 'yellow';
-      ctx.fillRect(centerX - originSize / 2, centerY - originSize / 2, originSize, originSize);
-    }
+      ctx.fillRect(centerX - originSize/2, centerY - originSize/2, originSize, originSize);
+    }}
 
-    function drawCurrentAndPrevious(newX, newY) {
+    function drawCurrentAndPrevious(newX, newY) {{
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawSensorOrigin();
-      if (previousPoint) {
+      if (previousPoint) {{
         drawPoint(previousPoint.x, previousPoint.y, '#888');
-      }
+      }}
       drawPoint(newX, newY);
-    }
+    }}
 
-    async function connectToDevice() {
-      if (!navigator.bluetooth) {
-        alert("Web Bluetooth API is not available in this browser!");
-        return;
-      }
-
-      try {
-        bleDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ name: deviceName }],
+    async function connectToDevice() {{
+      try {{
+        bleDevice = await navigator.bluetooth.requestDevice({{
+          filters: [{{ name: deviceName }}],
           optionalServices: [bleServiceUUID]
-        });
+        }});
 
         bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
         bleServer = await bleDevice.gatt.connect();
         bleService = await bleServer.getPrimaryService(bleServiceUUID);
         sensorCharacteristic = await bleService.getCharacteristic(sensorCharacteristicUUID);
-
         sensorCharacteristic.addEventListener('characteristicvaluechanged', handleData);
         await sensorCharacteristic.startNotifications();
 
         bleStateContainer.textContent = 'Connected';
-        bleStateContainer.classList.remove('status-disconnected');
         bleStateContainer.classList.add('status-connected');
+        bleStateContainer.classList.remove('status-disconnected');
 
-      } catch (error) {
+      }} catch (error) {{
         console.error('Connection Error:', error);
         alert("Failed to connect: " + error.message);
-        bleStateContainer.textContent = 'Disconnected';
-      }
-    }
+      }}
+    }}
 
-    function onDisconnected() {
-      bleStateContainer.textContent = "Device disconnected";
-      bleStateContainer.classList.remove('status-connected');
+    function onDisconnected() {{
+      bleStateContainer.textContent = "Disconnected";
       bleStateContainer.classList.add('status-disconnected');
-    }
+      bleStateContainer.classList.remove('status-connected');
+    }}
 
-    async function disconnectDevice() {
-      if (bleDevice && bleDevice.gatt.connected) {
+    async function disconnectDevice() {{
+      if (bleDevice && bleDevice.gatt.connected) {{
         bleDevice.gatt.disconnect();
         onDisconnected();
-      }
-    }
+      }}
+    }}
 
-    async function handleData(event) {
+    async function handleData(event) {{
       const buffer = event.target.value.buffer;
       const dataView = new DataView(buffer);
 
       const x = dataView.getInt32(0, true);
       const y = dataView.getInt32(4, true);
-      const speed = dataView.getInt8(8);
-      const distance = dataView.getUint16(10, true);
+      const distance = Math.sqrt(x*x + y*y);
+      const angle = Math.atan2(y, x) * (180 / Math.PI);
 
       const scaledX = canvas.width / 2 + x;
       const scaledY = canvas.height / 2 - y;
 
       drawCurrentAndPrevious(scaledX, scaledY);
-      previousPoint = { x: scaledX, y: scaledY };
+      previousPoint = {{ x: scaledX, y: scaledY }};
 
       valX.textContent = x;
       valY.textContent = y;
-      valSpeed.textContent = speed;
-      valDistance.textContent = distance;
-    }
+      valDistance.textContent = distance.toFixed(2);
+      valAngle.textContent = angle.toFixed(2) + "°";
+      valTime.textContent = new Date().toLocaleTimeString();
+    }}
 
     connectButton.addEventListener('click', connectToDevice);
     disconnectButton.addEventListener('click', disconnectDevice);
@@ -678,5 +697,3 @@ html("""
 </body>
 </html>
 """, height=800)
-
-
