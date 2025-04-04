@@ -219,92 +219,161 @@
 
 
 
-
 import streamlit as st
 from streamlit.components.v1 import html
 import plotly.graph_objects as go
-import streamlit_js_eval
-import json
+import pandas as pd
+import time
 
-st.set_page_config(page_title="Human Tracking BLE", layout="wide")
+st.set_page_config(page_title="Human-Tracking", layout="wide")
 
-# Tabs
-page = st.sidebar.radio("Select View", ["BLE Interface", "Graphical Visualization"])
+# Initialize session state
+if "data" not in st.session_state:
+    st.session_state.data = pd.DataFrame(columns=["Time", "X", "Y", "Speed", "Distance"])
 
-# Shared session state to store data
-if 'data_points' not in st.session_state:
-    st.session_state.data_points = []
+tab1, tab2 = st.tabs(["🔌 BLE Interface", "📈 Graphical View"])
 
-if page == "BLE Interface":
-    st.title("🧠 ESP32 BLE Human Tracking")
-    html("""
+with tab1:
+    st.title("🔌 BLE Interface (ESP32)")
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <body style='background-color:#121212; color:#fff; font-family:Arial;'>
+    <h3>ESP32 Web BLE Application</h3>
+    <button id="connectBleButton">Connect BLE</button>
+    <button id="disconnectBleButton">Disconnect</button>
+    <p>Status: <span id="status" style="color:red;">Disconnected</span></p>
+
+    <h4>Data</h4>
+    <p>X: <span id="xValue">NaN</span></p>
+    <p>Y: <span id="yValue">NaN</span></p>
+    <p>Speed: <span id="speedValue">NaN</span></p>
+    <p>Distance: <span id="distanceValue">NaN</span></p>
+
     <script>
-        const sendDataToStreamlit = (x, y, speed, distance) => {
-            const data = {x, y, speed, distance};
-            const streamlitEvent = new CustomEvent("streamlit:sendData", {detail: data});
-            window.dispatchEvent(streamlitEvent);
+    let device, server, service, sensorChar;
+    const SERVICE_UUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
+    const CHARACTERISTIC_UUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
+
+    document.getElementById("connectBleButton").addEventListener("click", async () => {
+        try {
+            device = await navigator.bluetooth.requestDevice({
+                filters: [{ name: "ESP32" }],
+                optionalServices: [SERVICE_UUID]
+            });
+            server = await device.gatt.connect();
+            service = await server.getPrimaryService(SERVICE_UUID);
+            sensorChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+            sensorChar.addEventListener('characteristicvaluechanged', handleNotification);
+            await sensorChar.startNotifications();
+
+            document.getElementById("status").innerText = "Connected";
+            document.getElementById("status").style.color = "green";
+
+        } catch (err) {
+            console.error(err);
+            alert("BLE Connect Error: " + err);
         }
+    });
 
-        // Overriding the existing handleData function
-        window.handleData = function(event) {
-            const buffer = event.target.value.buffer;
-            const dataView = new DataView(buffer);
-
-            let x = dataView.getInt32(0, true);
-            let y = dataView.getInt32(4, true);
-            let speed = dataView.getInt8(8);
-            let distance = dataView.getUint16(10, true);
-
-            document.getElementById('xValue').textContent = x;
-            document.getElementById('yValue').textContent = y;
-            document.getElementById('speedValue').textContent = speed;
-            document.getElementById('distanceValue').textContent = distance;
-            document.getElementById('timestamp').textContent = new Date().toLocaleString();
-
-            sendDataToStreamlit(x, y, speed, distance);
+    document.getElementById("disconnectBleButton").addEventListener("click", () => {
+        if (device && device.gatt.connected) {
+            device.gatt.disconnect();
+            document.getElementById("status").innerText = "Disconnected";
+            document.getElementById("status").style.color = "red";
         }
+    });
+
+    function handleNotification(event) {
+        let data = new DataView(event.target.value.buffer);
+        let x = data.getInt32(0, true);
+        let y = data.getInt32(4, true);
+        let speed = data.getInt8(8);
+        let distance = data.getUint16(10, true);
+
+        document.getElementById("xValue").innerText = x;
+        document.getElementById("yValue").innerText = y;
+        document.getElementById("speedValue").innerText = speed;
+        document.getElementById("distanceValue").innerText = distance;
+
+        // Send to Streamlit
+        window.parent.postMessage({
+            x: x,
+            y: y,
+            speed: speed,
+            distance: distance,
+            time: new Date().toISOString()
+        }, "*");
+    }
     </script>
-    """, height=0)
+    </body>
+    </html>
+    """
+    html(html_content, height=600)
 
-    # Your full BLE HTML interface goes below here
-    with open("ble_interface.html", "r") as f:
-        html(f.read(), height=800)
+with tab2:
+    st.title("📈 Real-Time Data Visualization")
 
-    # Capture data from JavaScript
-    data = streamlit_js_eval.streamlit_js_eval(
-        js_expressions="await new Promise(resolve => {
-            window.addEventListener('streamlit:sendData', event => resolve(event.detail), { once: true });
-        })",
-        key="ble-data-capture"
-    )
+    # Listener for frontend messages
+    js = """
+    <script>
+    window.addEventListener("message", (event) => {
+        const d = event.data;
+        if (d && d.time) {
+            const payload = `${d.time},${d.x},${d.y},${d.speed},${d.distance}`;
+            fetch("/data-collector", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ payload })
+            });
+        }
+    });
+    </script>
+    """
+    html(js, height=0)
 
-    if data:
-        try:
-            parsed = json.loads(data)
-            st.session_state.data_points.append(parsed)
-        except:
-            st.warning("Invalid data received from JS")
-
-elif page == "Graphical Visualization":
-    st.title("📊 Real-Time Target Plot")
-
-    if st.session_state.data_points:
-        points = st.session_state.data_points
-
-        x_vals = [pt["x"] for pt in points]
-        y_vals = [pt["y"] for pt in points]
-        speed_vals = [pt["speed"] for pt in points]
-        dist_vals = [pt["distance"] for pt in points]
-
+    # Plot live data from session state
+    df = st.session_state.data
+    if not df.empty:
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines+markers', name='Position (X,Y)'))
-        fig.update_layout(title='Target Path', xaxis_title='X', yaxis_title='Y')
-        st.plotly_chart(fig, use_container_width=True)
 
-        fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(y=speed_vals, mode='lines+markers', name='Speed'))
-        fig2.add_trace(go.Scatter(y=dist_vals, mode='lines+markers', name='Distance'))
-        fig2.update_layout(title='Speed and Distance over Time', xaxis_title='Time Index')
-        st.plotly_chart(fig2, use_container_width=True)
+        fig.add_trace(go.Scatter(x=df["Time"], y=df["X"], mode='lines+markers', name='X'))
+        fig.add_trace(go.Scatter(x=df["Time"], y=df["Y"], mode='lines+markers', name='Y'))
+        fig.add_trace(go.Scatter(x=df["Time"], y=df["Speed"], mode='lines+markers', name='Speed'))
+        fig.add_trace(go.Scatter(x=df["Time"], y=df["Distance"], mode='lines+markers', name='Distance'))
+
+        fig.update_layout(
+            template="plotly_dark",
+            title="Live Target Tracking",
+            xaxis_title="Time",
+            yaxis_title="Value",
+            height=600
+        )
+        st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("No data received yet. Connect BLE and start receiving values.")
+        st.info("Waiting for BLE data...")
+
+# Endpoint to receive data via fetch
+from streamlit.web.server.websocket_headers import _get_websocket_headers
+from streamlit.runtime.scriptrunner import add_script_run_ctx
+import json
+from fastapi import Request
+from starlette.responses import Response
+
+@st.experimental_singleton
+def get_app():
+    from fastapi import FastAPI
+    app = FastAPI()
+    return app
+
+app = get_app()
+
+@app.post("/data-collector")
+async def data_collector(request: Request):
+    body = await request.json()
+    payload = body.get("payload")
+    if payload:
+        time_str, x, y, speed, distance = payload.split(",")
+        st.session_state.data.loc[len(st.session_state.data)] = [time_str, int(x), int(y), int(speed), int(distance)]
+    return Response(content="OK")
