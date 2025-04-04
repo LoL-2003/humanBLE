@@ -1,9 +1,9 @@
 import streamlit as st
 from streamlit.components.v1 import html
 
-st.set_page_config(page_title="ESP32 Web Bluetooth", layout="centered")
+st.set_page_config(page_title="Human-Tracking", layout="centered")
 
-st.title("🔵 ESP32 Web Bluetooth App")
+st.title("Human-Tracking)
 
 # Embed your full HTML + JS here using triple quotes
 html("""
