@@ -234,26 +234,37 @@ html("""
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Graphical BLE Data Display</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
       background-color: #1e1e1e;
       color: white;
-      padding: 20px;
+      font-family: Arial, sans-serif;
     }
-    h2 {
-      color: #03dac6;
+    #appContainer {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+    }
+    #canvasContainer {
+      flex-grow: 1;
     }
     canvas {
+      width: 100%;
+      height: 100%;
       background: #2c2c2c;
-      border: 1px solid #555;
+      display: block;
     }
-    #values {
-      margin-top: 20px;
-      font-size: 16px;
-    }
-    .value-label {
-      color: #03dac6;
-      margin-right: 10px;
+    #controls {
+      padding: 10px;
+      background-color: #121212;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-around;
     }
     button {
       background-color: #1f1f1f;
@@ -270,21 +281,25 @@ html("""
     }
     .status-connected { color: #66bb6a; }
     .status-disconnected { color: #ef5350; }
+    .value-label { color: #03dac6; margin-right: 5px; }
   </style>
 </head>
 <body>
-  <h2>Live Target Tracking (Graphical)</h2>
-  <button id="connectBleButton">Connect to BLE Device</button>
-  <p>BLE state: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></p>
-  <canvas id="trackingCanvas" width="600" height="400"></canvas>
-  <div id="values">
-    <p><span class="value-label">X:</span> <span id="valX">NaN</span></p>
-    <p><span class="value-label">Y:</span> <span id="valY">NaN</span></p>
-    <p><span class="value-label">Speed:</span> <span id="valSpeed">NaN</span></p>
-    <p><span class="value-label">Distance:</span> <span id="valDistance">NaN</span></p>
-    <p><span class="value-label">Last Reading:</span> <span id="valTime">--:--:--</span></p>
+  <div id="appContainer">
+    <div id="canvasContainer">
+      <canvas id="trackingCanvas"></canvas>
+    </div>
+    <div id="controls">
+      <button id="connectBleButton">Connect to BLE Device</button>
+      <button id="disconnectBleButton">Disconnect</button>
+      <span>BLE state: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></span>
+      <span><span class="value-label">X:</span><span id="valX">NaN</span></span>
+      <span><span class="value-label">Y:</span><span id="valY">NaN</span></span>
+      <span><span class="value-label">Speed:</span><span id="valSpeed">NaN</span></span>
+      <span><span class="value-label">Distance:</span><span id="valDistance">NaN</span></span>
+      <span><span class="value-label">Last Reading:</span><span id="valTime">--:--:--</span></span>
+    </div>
   </div>
-
   <script>
     const canvas = document.getElementById('trackingCanvas');
     const ctx = canvas.getContext('2d');
@@ -295,37 +310,38 @@ html("""
     const valTime = document.getElementById('valTime');
     const bleStateContainer = document.getElementById('bleState');
     const connectButton = document.getElementById('connectBleButton');
+    const disconnectButton = document.getElementById('disconnectBleButton');
 
-    let path = [];
+    let previousPoint = null;
     let bleDevice, bleServer, bleService, sensorCharacteristic;
 
     const deviceName = 'ESP32';
     const bleServiceUUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
     const sensorCharacteristicUUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
 
-    function drawPoint(x, y) {
-      ctx.fillStyle = '#03dac6';
+    function resizeCanvas() {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function drawPoint(x, y, color = '#03dac6') {
+      ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    function drawPath() {
+    function drawCurrentAndPrevious(newX, newY) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.beginPath();
-      ctx.strokeStyle = '#bb86fc';
-      ctx.lineWidth = 2;
-      for (let i = 0; i < path.length; i++) {
-        const point = path[i];
-        const scaledX = canvas.width / 2 + point.x;
-        const scaledY = canvas.height / 2 - point.y;
-        if (i === 0) ctx.moveTo(scaledX, scaledY);
-        else ctx.lineTo(scaledX, scaledY);
+
+      if (previousPoint) {
+        drawPoint(previousPoint.x, previousPoint.y, '#888');
       }
-      ctx.stroke();
-      for (const point of path) {
-        drawPoint(canvas.width / 2 + point.x, canvas.height / 2 - point.y);
-      }
+
+      drawPoint(newX, newY);
     }
 
     async function connectToDevice() {
@@ -340,11 +356,7 @@ html("""
           optionalServices: [bleServiceUUID]
         });
 
-        bleDevice.addEventListener('gattserverdisconnected', () => {
-          bleStateContainer.textContent = "Device disconnected";
-          bleStateContainer.classList.remove('status-connected');
-          bleStateContainer.classList.add('status-disconnected');
-        });
+        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
         bleServer = await bleDevice.gatt.connect();
         bleService = await bleServer.getPrimaryService(bleServiceUUID);
@@ -364,6 +376,19 @@ html("""
       }
     }
 
+    function onDisconnected() {
+      bleStateContainer.textContent = "Device disconnected";
+      bleStateContainer.classList.remove('status-connected');
+      bleStateContainer.classList.add('status-disconnected');
+    }
+
+    async function disconnectDevice() {
+      if (bleDevice && bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect();
+        onDisconnected();
+      }
+    }
+
     async function handleData(event) {
       const buffer = event.target.value.buffer;
       const dataView = new DataView(buffer);
@@ -373,9 +398,11 @@ html("""
       const speed = dataView.getInt8(8);
       const distance = dataView.getUint16(10, true);
 
-      path.push({ x, y });
-      if (path.length > 50) path.shift();
-      drawPath();
+      const scaledX = canvas.width / 2 + x;
+      const scaledY = canvas.height / 2 - y;
+
+      drawCurrentAndPrevious(scaledX, scaledY);
+      previousPoint = { x: scaledX, y: scaledY };
 
       valX.textContent = x;
       valY.textContent = y;
@@ -385,6 +412,7 @@ html("""
     }
 
     connectButton.addEventListener('click', connectToDevice);
+    disconnectButton.addEventListener('click', disconnectDevice);
   </script>
 </body>
 </html>
