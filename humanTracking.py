@@ -6,88 +6,102 @@ st.title("Human-Tracking")
 
 html("""
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>ESP32 Web BLE App</title>
+    <title>ESP32 BLE Web</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
+        body { background-color: #121212; color: #e0e0e0; font-family: Arial, sans-serif; padding: 20px; }
         h3, h4 { color: #ffffff; }
-        button { background-color: #1f1f1f; color: #ffffff; border: 1px solid #444; padding: 10px 20px; margin: 5px; border-radius: 6px; cursor: pointer; transition: background 0.3s ease; }
-        button:hover { background-color: #333333; }
-        #valueContainer, #timestamp, #valueSent { color: #90caf9; font-weight: bold; }
+        button { background: #333; color: #fff; border: 1px solid #444; padding: 10px 20px; margin: 5px; cursor: pointer; }
+        button:hover { background: #444; }
         #bleState { font-weight: bold; }
-        .status-connected { color: #66bb6a; }
-        .status-disconnected { color: #ef5350; }
-        footer:after { content: 'Made with ❤️ by ADITYA PURI'; visibility: visible; display: block; color: #888; text-align: center; padding-top: 10px; }
+        .status-connected { color: #4CAF50; }
+        .status-disconnected { color: #FF5252; }
     </style>
 </head>
 <body>
-  <h3>ESP32 Web BLE Application</h3>
-  <button id="connectBleButton">Connect to BLE Device</button>
-  <button id="disconnectBleButton">Disconnect BLE Device</button>
-  <p>BLE state: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></p>
-  <h4>Fetched Value</h4>
-  <p><span id="valueContainer">NaN</span></p>
-  <p>Last reading: <span id="timestamp"></span></p>
-  <h4>Control GPIO 2</h4>
-  <button id="onButton">ON</button>
-  <button id="offButton">OFF</button>
-  <p>Last value sent: <span id="valueSent"></span></p>
+    <h3>ESP32 BLE Web App</h3>
+    <button id="connectBle">Connect to ESP32</button>
+    <button id="disconnectBle">Disconnect</button>
+    <p>BLE State: <span id="bleState" class="status-disconnected">Disconnected</span></p>
 
-  <script>
-    const deviceName = 'ESP32';
-    const bleService = '19b10000-e8f2-537e-4f6c-d104768a1214';
-    const ledCharacteristic = '19b10002-e8f2-537e-4f6c-d104768a1214';
-    const sensorCharacteristic = '19b10001-e8f2-537e-4f6c-d104768a1214';
+    <h4>Received Sensor Value:</h4>
+    <p id="sensorValue">-</p>
 
-    let bleServer = null;
-    let bleServiceFound = null;
-    let sensorCharacteristicFound = null;
+    <h4>Control LED</h4>
+    <button id="ledOn">Turn ON</button>
+    <button id="ledOff">Turn OFF</button>
 
-    document.getElementById('connectBleButton').addEventListener('click', () => { if (isWebBluetoothEnabled()) connectToDevice(); });
-    document.getElementById('disconnectBleButton').addEventListener('click', disconnectDevice);
-    document.getElementById('onButton').addEventListener('click', () => writeOnCharacteristic(1));
-    document.getElementById('offButton').addEventListener('click', () => writeOnCharacteristic(0));
+    <script>
+        let bleDevice, bleServer, bleService, sensorChar, ledChar;
+        const SERVICE_UUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
+        const SENSOR_UUID = "19b10001-e8f2-537e-4f6c-d104768a1214";
+        const LED_UUID = "19b10002-e8f2-537e-4f6c-d104768a1214";
 
-    function isWebBluetoothEnabled() {
-        return navigator.bluetooth ? true : (alert("Web Bluetooth API is not available!"), false);
-    }
+        document.getElementById("connectBle").addEventListener("click", async () => {
+            if (!navigator.bluetooth) {
+                alert("Web Bluetooth API not supported!");
+                return;
+            }
 
-    function connectToDevice() {
-        navigator.bluetooth.requestDevice({ filters: [{ name: deviceName }], optionalServices: [bleService] })
-        .then(device => device.gatt.connect())
-        .then(gattServer => (bleServer = gattServer, bleServer.getPrimaryService(bleService)))
-        .then(service => (bleServiceFound = service, service.getCharacteristic(sensorCharacteristic)))
-        .then(characteristic => {
-            sensorCharacteristicFound = characteristic;
-            characteristic.addEventListener('characteristicvaluechanged', handleCharacteristicChange);
-            return characteristic.startNotifications();
-        })
-        .catch(error => console.error('Error:', error));
-    }
+            try {
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: "ESP32-BLE" }],
+                    optionalServices: [SERVICE_UUID]
+                });
 
-    function handleCharacteristicChange(event) {
-        let valueReceived = new TextDecoder().decode(event.target.value);
-        document.getElementById('valueContainer').textContent = valueReceived;
-        document.getElementById('timestamp').textContent = new Date().toLocaleTimeString();
-    }
+                bleDevice.addEventListener("gattserverdisconnected", onDisconnected);
 
-    function writeOnCharacteristic(value) {
-        if (bleServer && bleServer.connected) {
-            bleServiceFound.getCharacteristic(ledCharacteristic)
-                .then(characteristic => characteristic.writeValue(new TextEncoder().encode(value.toString())))
-                .then(() => document.getElementById('valueSent').textContent = value)
-                .catch(error => alert("Write error: " + error.message));
-        } else alert("Bluetooth is not connected. Connect to BLE first!");
-    }
+                bleServer = await bleDevice.gatt.connect();
+                document.getElementById("bleState").textContent = "Connected";
+                document.getElementById("bleState").className = "status-connected";
 
-    function disconnectDevice() {
-        if (bleServer && bleServer.connected) {
-            sensorCharacteristicFound.stopNotifications().then(() => bleServer.disconnect());
-        } else alert("Bluetooth is not connected.");
-    }
-  </script>
+                bleService = await bleServer.getPrimaryService(SERVICE_UUID);
+
+                sensorChar = await bleService.getCharacteristic(SENSOR_UUID);
+                sensorChar.addEventListener("characteristicvaluechanged", handleSensorValue);
+                await sensorChar.startNotifications();
+
+                ledChar = await bleService.getCharacteristic(LED_UUID);
+
+                console.log("✅ BLE Connected Successfully");
+            } catch (error) {
+                console.error("❌ Connection Error:", error);
+            }
+        });
+
+        function handleSensorValue(event) {
+            let value = new TextDecoder().decode(event.target.value);
+            document.getElementById("sensorValue").textContent = value;
+            console.log("📡 Sensor Value Received:", value);
+        }
+
+        async function sendValue(value) {
+            if (!ledChar) return alert("❌ BLE Not Connected");
+            try {
+                await ledChar.writeValue(new TextEncoder().encode(value.toString()));
+                console.log(`✅ Sent ${value} to LED`);
+            } catch (error) {
+                console.error("❌ Write Error:", error);
+            }
+        }
+
+        document.getElementById("ledOn").addEventListener("click", () => sendValue(1));
+        document.getElementById("ledOff").addEventListener("click", () => sendValue(0));
+
+        function onDisconnected() {
+            console.log("❌ BLE Disconnected");
+            document.getElementById("bleState").textContent = "Disconnected";
+            document.getElementById("bleState").className = "status-disconnected";
+        }
+
+        document.getElementById("disconnectBle").addEventListener("click", () => {
+            if (bleDevice && bleDevice.gatt.connected) {
+                bleDevice.gatt.disconnect();
+            }
+        });
+    </script>
 </body>
 </html>
 """, height=800)
