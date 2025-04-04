@@ -164,14 +164,14 @@ async function handleData(event) {
     // Try both endian formats and see which works
     let distance = dataView.getUint16(10, true);  // Little-Endian
 
-    console.log(`Extracted Values (LE):distance_LE=${distance_LE}`);
-    console.log(`Extracted Values (BE):distance_BE=${distance_BE}`);
+     //console.log(`Extracted Values (LE):distance_LE=${distance_LE}`);
+     //console.log(`Extracted Values (BE):distance_BE=${distance_BE}`);
 
     // Display values
     document.getElementById('xValue').textContent = x;
     document.getElementById('yValue').textContent = y;
     document.getElementById('speedValue').textContent = speed;
-    document.getElementById('distanceValue').textContent = distance_BE; // Try swapping to LE if needed
+    document.getElementById('distanceValue').textContent = distance; 
     document.getElementById('timestamp').textContent = new Date().toLocaleString();
 }
 
