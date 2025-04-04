@@ -157,16 +157,18 @@ html("""
         const buffer = event.target.value.buffer;
         const dataView = new DataView(buffer);
 
-        let x = dataView.getInt16(0, true);  // X is 2 bytes
-        let y = dataView.getInt16(2, true);  // Y is 2 bytes
-        let speed = dataView.getUint8(4);    // Speed is 1 byte (0-16)
-        let distance = dataView.getUint16(5, true);  // Distance is 2 bytes (0-500)
+        console.log("Raw Data:", new Uint8Array(buffer)); // Debug
+
+        let x = dataView.getInt32(0, true);
+        let y = dataView.getInt32(4, true);
+        let speed = dataView.getUint8(8) & 0x0F;  // Fixed Speed Extraction
+        let distance = dataView.getUint16(9, false);  // Fixed Endianness
 
         xValueContainer.textContent = x;
         yValueContainer.textContent = y;
         speedContainer.textContent = speed;
         distanceContainer.textContent = distance;
-        timestampContainer.textContent = getDateTime();
+        timestampContainer.textContent = new Date().toLocaleString();
     }
 
     async function writeToCharacteristic(value) {
@@ -202,10 +204,6 @@ html("""
             console.error("Disconnect Error:", error);
             alert("Error disconnecting: " + error.message);
         }
-    }
-
-    function getDateTime() {
-        return new Date().toLocaleString();
     }
   </script>
 </body>
