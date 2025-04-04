@@ -379,15 +379,24 @@ html("""
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    function drawPoint(x, y, color = '#03dac6') {
+    function drawPoint(x, y, color = '#03dac6', radius = 5) {
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    function drawSensorOrigin() {
+      const originSize = 10;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      ctx.fillStyle = 'yellow';
+      ctx.fillRect(centerX - originSize/2, centerY - originSize/2, originSize, originSize);
     }
 
     function drawCurrentAndPrevious(newX, newY) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawSensorOrigin();
       if (previousPoint) {
         drawPoint(previousPoint.x, previousPoint.y, '#888');
       }
