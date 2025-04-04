@@ -160,16 +160,19 @@ async function handleData(event) {
     let x = dataView.getInt32(0, true);   // 4 bytes (Little-Endian)
     let y = dataView.getInt32(4, true);   // 4 bytes (Little-Endian)
     let speed = dataView.getInt8(8);      // 1 byte (Signed)
-    
-    // Corrected Distance Extraction
-    let distance = dataView.getUint16(10, false); // Big-Endian Fix
 
-    console.log(`Extracted Values: X=${x}, Y=${y}, Speed=${speed}, Distance=${distance}`);
+    // Try both endian formats and see which works
+    let distance_LE = dataView.getUint16(10, true);  // Little-Endian
+    let distance_BE = dataView.getUint16(10, false); // Big-Endian
 
+    console.log(`Extracted Values (LE): X=${x}, Y=${y}, Speed=${speed}, Distance=${distance_LE}`);
+    console.log(`Extracted Values (BE): X=${x}, Y=${y}, Speed=${speed}, Distance=${distance_BE}`);
+
+    // Display values
     document.getElementById('xValue').textContent = x;
     document.getElementById('yValue').textContent = y;
     document.getElementById('speedValue').textContent = speed;
-    document.getElementById('distanceValue').textContent = distance;
+    document.getElementById('distanceValue').textContent = distance_BE; // Try swapping to LE if needed
     document.getElementById('timestamp').textContent = new Date().toLocaleString();
 }
 
