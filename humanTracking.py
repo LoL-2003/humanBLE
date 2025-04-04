@@ -158,7 +158,7 @@ html("""
     let x = dataView.getInt32(0, true);   // 4 bytes (Little-Endian)
     let y = dataView.getInt32(4, true);   // 4 bytes (Little-Endian)
     let speed = dataView.getInt8(8);      // 1 byte (Signed)
-    let distance = dataView.getUint16(9, true);  // 2 bytes (Little-Endian)
+    let distance = dataView.getUint16(9, false);  // 2 bytes (Big-Endian) ✅ FIXED
 
     console.log(`Extracted Values: X=${x}, Y=${y}, Speed=${speed}, Distance=${distance}`);
 
@@ -167,7 +167,8 @@ html("""
     document.getElementById('speedValue').textContent = speed;
     document.getElementById('distanceValue').textContent = distance;
     document.getElementById('timestamp').textContent = new Date().toLocaleString();
-}
+    }
+
 
 
     async function writeToCharacteristic(value) {
