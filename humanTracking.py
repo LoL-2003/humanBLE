@@ -39,9 +39,9 @@ html("""
         const SENSOR_UUID = "19b10001-e8f2-537e-4f6c-d104768a1214";
         const LED_UUID = "19b10002-e8f2-537e-4f6c-d104768a1214";
 
-        document.getElementById("connectBle").addEventListener("click", async () => {
-            if (!navigator.bluetooth) {
-                alert("Web Bluetooth API not supported!");
+        async function connectBLE() {
+            if (bleDevice) {
+                console.log("⚠️ Already connected to BLE.");
                 return;
             }
 
@@ -52,11 +52,7 @@ html("""
                 });
 
                 bleDevice.addEventListener("gattserverdisconnected", onDisconnected);
-
                 bleServer = await bleDevice.gatt.connect();
-                document.getElementById("bleState").textContent = "Connected";
-                document.getElementById("bleState").className = "status-connected";
-
                 bleService = await bleServer.getPrimaryService(SERVICE_UUID);
 
                 sensorChar = await bleService.getCharacteristic(SENSOR_UUID);
@@ -65,16 +61,19 @@ html("""
 
                 ledChar = await bleService.getCharacteristic(LED_UUID);
 
-                console.log("✅ BLE Connected Successfully");
+                document.getElementById("bleState").textContent = "Connected";
+                document.getElementById("bleState").className = "status-connected";
+                console.log("✅ BLE Connected Successfully!");
             } catch (error) {
                 console.error("❌ Connection Error:", error);
+                alert("Failed to connect. Try again.");
             }
-        });
+        }
 
         function handleSensorValue(event) {
             let value = new TextDecoder().decode(event.target.value);
             document.getElementById("sensorValue").textContent = value;
-            console.log("📡 Sensor Value Received:", value);
+            console.log("📡 Sensor Value:", value);
         }
 
         async function sendValue(value) {
@@ -87,21 +86,19 @@ html("""
             }
         }
 
-        document.getElementById("ledOn").addEventListener("click", () => sendValue(1));
-        document.getElementById("ledOff").addEventListener("click", () => sendValue(0));
-
         function onDisconnected() {
-            console.log("❌ BLE Disconnected");
+            console.log("❌ BLE Disconnected. Attempting Reconnect...");
             document.getElementById("bleState").textContent = "Disconnected";
             document.getElementById("bleState").className = "status-disconnected";
+            setTimeout(connectBLE, 2000); // Auto-reconnect after 2 sec
         }
 
-        document.getElementById("disconnectBle").addEventListener("click", () => {
-            if (bleDevice && bleDevice.gatt.connected) {
-                bleDevice.gatt.disconnect();
-            }
-        });
+        document.getElementById("connectBle").addEventListener("click", connectBLE);
+        document.getElementById("disconnectBle").addEventListener("click", () => bleDevice?.gatt.disconnect());
+        document.getElementById("ledOn").addEventListener("click", () => sendValue(1));
+        document.getElementById("ledOff").addEventListener("click", () => sendValue(0));
     </script>
 </body>
 </html>
+
 """, height=800)
