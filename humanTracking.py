@@ -3,7 +3,7 @@ from streamlit.components.v1 import html
 
 st.set_page_config(page_title="Human-Tracking", layout="centered")
 
-st.title("Human-Tracking)
+st.title("Human-Tracking")
 
 # Embed your full HTML + JS here using triple quotes
 html("""
@@ -158,4 +158,14 @@ html("""
     }
 </script>
 </html>
+<style>
+             #MainMenu {visibility: hidden;}
+             footer {visibility: hidden;}
+             footer:after {content:'Made with ❤️ by ADITYA PURI';visibility: visible;display: block;}
+             .st-emotion-cache-cio0dv {
+             padding-left: 20%;
+             padding-right: 1rem;
+             }
+             header {visibility: hidden;}
+              </style>
 """, height=800)
