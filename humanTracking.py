@@ -12,25 +12,72 @@ html("""
     <title>ESP32 Web BLE App</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+        }
+
+        h3, h4 {
+            color: #ffffff;
+        }
+
+        button {
+            background-color: #1f1f1f;
+            color: #ffffff;
+            border: 1px solid #444;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #333333;
+        }
+
+        #valueContainer, #timestamp, #valueSent {
+            color: #90caf9;
+            font-weight: bold;
+        }
+
+        #bleState {
+            font-weight: bold;
+        }
+
+        .status-connected {
+            color: #66bb6a;
+        }
+
+        .status-disconnected {
+            color: #ef5350;
+        }
+
         #MainMenu {visibility: hidden;}
+        header {visibility: hidden;}
         footer {visibility: hidden;}
         footer:after {
             content: 'Made with ❤️ by ADITYA PURI';
             visibility: visible;
             display: block;
+            color: #888;
+            text-align: center;
+            padding-top: 10px;
         }
+
         .st-emotion-cache-cio0dv {
             padding-left: 20%;
             padding-right: 1rem;
         }
-        header {visibility: hidden;}
     </style>
 </head>
 <body>
   <h3>ESP32 Web BLE Application</h3>
   <button id="connectBleButton">Connect to BLE Device</button>
   <button id="disconnectBleButton">Disconnect BLE Device</button>
-  <p>BLE state: <strong><span id="bleState" style="color:#d13a30;">Disconnected</span></strong></p>
+  <p>BLE state: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></p>
   <h4>Fetched Value</h4>
   <p><span id="valueContainer">NaN</span></p>
   <p>Last reading: <span id="timestamp"></span></p>
@@ -70,7 +117,7 @@ html("""
 
     function isWebBluetoothEnabled() {
         if (!navigator.bluetooth) {
-            bleStateContainer.innerHTML = "Web Bluetooth API is not available in this browser!";
+            bleStateContainer.textContent = "Web Bluetooth API is not available in this browser!";
             return false;
         }
         return true;
@@ -82,8 +129,9 @@ html("""
             optionalServices: [bleService]
         })
         .then(device => {
-            bleStateContainer.innerHTML = 'Connected to device ' + device.name;
-            bleStateContainer.style.color = "#24af37";
+            bleStateContainer.textContent = 'Connected to device ' + device.name;
+            bleStateContainer.classList.remove('status-disconnected');
+            bleStateContainer.classList.add('status-connected');
             device.addEventListener('gattserverdisconnected', onDisconnected);
             return device.gatt.connect();
         })
@@ -103,23 +151,24 @@ html("""
         })
         .then(value => {
             const decodedValue = new TextDecoder().decode(value);
-            retrievedValue.innerHTML = decodedValue;
+            retrievedValue.textContent = decodedValue;
         })
         .catch(error => {
             console.error('Error:', error);
-            bleStateContainer.innerHTML = 'Connection error: ' + error.message;
+            bleStateContainer.textContent = 'Connection error: ' + error.message;
         });
     }
 
     function onDisconnected(event) {
-        bleStateContainer.innerHTML = "Device disconnected";
-        bleStateContainer.style.color = "#d13a30";
+        bleStateContainer.textContent = "Device disconnected";
+        bleStateContainer.classList.remove('status-connected');
+        bleStateContainer.classList.add('status-disconnected');
     }
 
     function handleCharacteristicChange(event) {
         const newValueReceived = new TextDecoder().decode(event.target.value);
-        retrievedValue.innerHTML = newValueReceived;
-        timestampContainer.innerHTML = getDateTime();
+        retrievedValue.textContent = newValueReceived;
+        timestampContainer.textContent = getDateTime();
     }
 
     function writeOnCharacteristic(value) {
@@ -130,7 +179,7 @@ html("""
                     return characteristic.writeValue(data);
                 })
                 .then(() => {
-                    latestValueSent.innerHTML = value;
+                    latestValueSent.textContent = value;
                 })
                 .catch(error => {
                     console.error("Error writing to characteristic:", error);
@@ -147,8 +196,9 @@ html("""
                 sensorCharacteristicFound.stopNotifications()
                     .then(() => bleServer.disconnect())
                     .then(() => {
-                        bleStateContainer.innerHTML = "Device Disconnected";
-                        bleStateContainer.style.color = "#d13a30";
+                        bleStateContainer.textContent = "Device Disconnected";
+                        bleStateContainer.classList.remove('status-connected');
+                        bleStateContainer.classList.add('status-disconnected');
                     })
                     .catch(error => {
                         console.error("Error during disconnect:", error);
