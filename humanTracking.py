@@ -221,159 +221,180 @@
 
 import streamlit as st
 from streamlit.components.v1 import html
+from streamlit_js_eval import streamlit_js_eval
 import plotly.graph_objects as go
 import pandas as pd
 import time
 
 st.set_page_config(page_title="Human-Tracking", layout="wide")
 
-# Initialize session state
-if "data" not in st.session_state:
-    st.session_state.data = pd.DataFrame(columns=["Time", "X", "Y", "Speed", "Distance"])
+st.title("Human-Tracking")
 
-tab1, tab2 = st.tabs(["🔌 BLE Interface", "📈 Graphical View"])
+tabs = st.tabs(["BLE Interface", "Graphical Tracking"])
 
-with tab1:
-    st.title("🔌 BLE Interface (ESP32)")
-    html_content = """
+# Shared state using session_state if not already set
+if 'data' not in st.session_state:
+    st.session_state.data = []
+
+with tabs[0]:
+    html("""
     <!DOCTYPE html>
     <html>
-    <body style='background-color:#121212; color:#fff; font-family:Arial;'>
-    <h3>ESP32 Web BLE Application</h3>
-    <button id="connectBleButton">Connect BLE</button>
-    <button id="disconnectBleButton">Disconnect</button>
-    <p>Status: <span id="status" style="color:red;">Disconnected</span></p>
+    <head>
+        <title>ESP32 Web BLE App</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body {
+                background-color: #121212;
+                color: #e0e0e0;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                padding: 20px;
+            }
+            button {
+                background-color: #1f1f1f;
+                color: #ffffff;
+                border: 1px solid #444;
+                padding: 10px 20px;
+                margin: 5px;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: background 0.3s ease;
+            }
+            button:hover { background-color: #333333; }
+            .status-connected { color: #66bb6a; }
+            .status-disconnected { color: #ef5350; }
+        </style>
+    </head>
+    <body>
+      <h3>ESP32 Web BLE Application</h3>
+      <button id="connectBleButton">Connect to BLE Device</button>
+      <button id="disconnectBleButton">Disconnect BLE Device</button>
+      <p>BLE state: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></p>
 
-    <h4>Data</h4>
-    <p>X: <span id="xValue">NaN</span></p>
-    <p>Y: <span id="yValue">NaN</span></p>
-    <p>Speed: <span id="speedValue">NaN</span></p>
-    <p>Distance: <span id="distanceValue">NaN</span></p>
+      <h4>Fetched Values</h4>
+      <p>X: <span id="xValue">NaN</span></p>
+      <p>Y: <span id="yValue">NaN</span></p>
+      <p>Speed: <span id="speedValue">NaN</span></p>
+      <p>Distance: <span id="distanceValue">NaN</span></p>
+      <p>Last reading: <span id="timestamp"></span></p>
 
-    <script>
-    let device, server, service, sensorChar;
-    const SERVICE_UUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
-    const CHARACTERISTIC_UUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
+      <script>
+        const connectButton = document.getElementById('connectBleButton');
+        const disconnectButton = document.getElementById('disconnectBleButton');
+        const bleStateContainer = document.getElementById('bleState');
+        const xContainer = document.getElementById('xValue');
+        const yContainer = document.getElementById('yValue');
+        const speedContainer = document.getElementById('speedValue');
+        const distanceContainer = document.getElementById('distanceValue');
+        const timestampContainer = document.getElementById('timestamp');
 
-    document.getElementById("connectBleButton").addEventListener("click", async () => {
-        try {
-            device = await navigator.bluetooth.requestDevice({
-                filters: [{ name: "ESP32" }],
-                optionalServices: [SERVICE_UUID]
-            });
-            server = await device.gatt.connect();
-            service = await server.getPrimaryService(SERVICE_UUID);
-            sensorChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
+        const bleServiceUUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
+        const sensorCharacteristicUUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
 
-            sensorChar.addEventListener('characteristicvaluechanged', handleNotification);
-            await sensorChar.startNotifications();
+        let bleDevice = null;
+        let sensorCharacteristic = null;
 
-            document.getElementById("status").innerText = "Connected";
-            document.getElementById("status").style.color = "green";
+        connectButton.addEventListener('click', async () => {
+            try {
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'ESP32' }],
+                    optionalServices: [bleServiceUUID]
+                });
 
-        } catch (err) {
-            console.error(err);
-            alert("BLE Connect Error: " + err);
+                const server = await bleDevice.gatt.connect();
+                const service = await server.getPrimaryService(bleServiceUUID);
+                sensorCharacteristic = await service.getCharacteristic(sensorCharacteristicUUID);
+                await sensorCharacteristic.startNotifications();
+                sensorCharacteristic.addEventListener('characteristicvaluechanged', handleData);
+
+                bleStateContainer.textContent = 'Connected';
+                bleStateContainer.className = 'status-connected';
+            } catch (error) {
+                alert("Connection failed: " + error);
+            }
+        });
+
+        disconnectButton.addEventListener('click', () => {
+            if (bleDevice && bleDevice.gatt.connected) {
+                bleDevice.gatt.disconnect();
+                bleStateContainer.textContent = 'Disconnected';
+                bleStateContainer.className = 'status-disconnected';
+            }
+        });
+
+        function handleData(event) {
+            const buffer = event.target.value.buffer;
+            const dataView = new DataView(buffer);
+            const x = dataView.getInt32(0, true);
+            const y = dataView.getInt32(4, true);
+            const speed = dataView.getInt8(8);
+            const distance = dataView.getUint16(10, true);
+
+            xContainer.textContent = x;
+            yContainer.textContent = y;
+            speedContainer.textContent = speed;
+            distanceContainer.textContent = distance;
+            timestampContainer.textContent = new Date().toLocaleTimeString();
+
+            window.parent.postMessage({ type: "ble_data", x, y, speed, distance }, '*');
         }
-    });
-
-    document.getElementById("disconnectBleButton").addEventListener("click", () => {
-        if (device && device.gatt.connected) {
-            device.gatt.disconnect();
-            document.getElementById("status").innerText = "Disconnected";
-            document.getElementById("status").style.color = "red";
-        }
-    });
-
-    function handleNotification(event) {
-        let data = new DataView(event.target.value.buffer);
-        let x = data.getInt32(0, true);
-        let y = data.getInt32(4, true);
-        let speed = data.getInt8(8);
-        let distance = data.getUint16(10, true);
-
-        document.getElementById("xValue").innerText = x;
-        document.getElementById("yValue").innerText = y;
-        document.getElementById("speedValue").innerText = speed;
-        document.getElementById("distanceValue").innerText = distance;
-
-        // Send to Streamlit
-        window.parent.postMessage({
-            x: x,
-            y: y,
-            speed: speed,
-            distance: distance,
-            time: new Date().toISOString()
-        }, "*");
-    }
-    </script>
+      </script>
     </body>
     </html>
-    """
-    html(html_content, height=600)
+    """, height=800)
 
-with tab2:
-    st.title("📈 Real-Time Data Visualization")
+# Listen for BLE data using streamlit_js_eval
+streamlit_js_eval(
+    js_expressions="""
+    await new Promise(resolve => {
+        window.addEventListener("message", (event) => {
+            if (event.data?.type === "ble_data") {
+                const payload = event.data;
+                const pybridge = window.parent?.streamlitWebSocket;
+                if (pybridge) {
+                    pybridge.send(JSON.stringify({ type: "streamlit:ble_data", data: payload }));
+                }
+                resolve(true);
+            }
+        }, { once: true });
+    })
+    """,
+    key="ble_data_listener"
+)
 
-    # Listener for frontend messages
-    js = """
-    <script>
-    window.addEventListener("message", (event) => {
-        const d = event.data;
-        if (d && d.time) {
-            const payload = `${d.time},${d.x},${d.y},${d.speed},${d.distance}`;
-            fetch("/data-collector", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ payload })
-            });
-        }
-    });
-    </script>
-    """
-    html(js, height=0)
+# Handle incoming BLE data
+from streamlit.runtime.scriptrunner import get_script_run_ctx
+ctx = get_script_run_ctx()
+if hasattr(ctx, '_widget_states'):
+    import json
+    raw = ctx._widget_states.get("ble_data_listener")
+    if raw and isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+            if 'data' in parsed:
+                st.session_state.data.append({
+                    'time': time.time(),
+                    'x': parsed['data']['x'],
+                    'y': parsed['data']['y'],
+                    'speed': parsed['data']['speed'],
+                    'distance': parsed['data']['distance']
+                })
+        except json.JSONDecodeError:
+            pass
 
-    # Plot live data from session state
-    df = st.session_state.data
-    if not df.empty:
+with tabs[1]:
+    st.header("Live Target Tracking")
+    if st.session_state.data:
+        df = pd.DataFrame(st.session_state.data)
         fig = go.Figure()
-
-        fig.add_trace(go.Scatter(x=df["Time"], y=df["X"], mode='lines+markers', name='X'))
-        fig.add_trace(go.Scatter(x=df["Time"], y=df["Y"], mode='lines+markers', name='Y'))
-        fig.add_trace(go.Scatter(x=df["Time"], y=df["Speed"], mode='lines+markers', name='Speed'))
-        fig.add_trace(go.Scatter(x=df["Time"], y=df["Distance"], mode='lines+markers', name='Distance'))
-
+        fig.add_trace(go.Scatter(x=df['x'], y=df['y'], mode='markers+lines', name='Target Path'))
         fig.update_layout(
-            template="plotly_dark",
-            title="Live Target Tracking",
-            xaxis_title="Time",
-            yaxis_title="Value",
+            xaxis_title='X Position',
+            yaxis_title='Y Position',
+            title='Live Movement Graph',
+            template='plotly_dark',
             height=600
         )
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("Waiting for BLE data...")
-
-# Endpoint to receive data via fetch
-from streamlit.web.server.websocket_headers import _get_websocket_headers
-from streamlit.runtime.scriptrunner import add_script_run_ctx
-import json
-from fastapi import Request
-from starlette.responses import Response
-
-@st.experimental_singleton
-def get_app():
-    from fastapi import FastAPI
-    app = FastAPI()
-    return app
-
-app = get_app()
-
-@app.post("/data-collector")
-async def data_collector(request: Request):
-    body = await request.json()
-    payload = body.get("payload")
-    if payload:
-        time_str, x, y, speed, distance = payload.split(",")
-        st.session_state.data.loc[len(st.session_state.data)] = [time_str, int(x), int(y), int(speed), int(distance)]
-    return Response(content="OK")
+        st.info("No data received yet. Connect BLE device to begin tracking.")
