@@ -148,26 +148,30 @@ html("""
         console.log("Device Disconnected");
     }
 
-    async function handleData(event) {
+async function handleData(event) {
     const buffer = event.target.value.buffer;
     const dataView = new DataView(buffer);
     const rawData = new Uint8Array(buffer);
 
-    console.log("Raw Data Received:", rawData);
+    console.log("Raw Data Received:", rawData); // Print the raw byte array
 
     let x = dataView.getInt32(0, true);   // 4 bytes (Little-Endian)
     let y = dataView.getInt32(4, true);   // 4 bytes (Little-Endian)
     let speed = dataView.getInt8(8);      // 1 byte (Signed)
-    let distance = dataView.getUint16(9, false);  // 2 bytes (Big-Endian) ✅ FIXED
+    
+    // Extract distance in both endian formats for testing
+    let distanceLE = dataView.getUint16(9, true);   // Little Endian
+    let distanceBE = dataView.getUint16(9, false);  // Big Endian
 
-    console.log(`Extracted Values: X=${x}, Y=${y}, Speed=${speed}, Distance=${distance}`);
+    console.log(`Extracted Values: X=${x}, Y=${y}, Speed=${speed}, Distance_LE=${distanceLE}, Distance_BE=${distanceBE}`);
 
     document.getElementById('xValue').textContent = x;
     document.getElementById('yValue').textContent = y;
     document.getElementById('speedValue').textContent = speed;
-    document.getElementById('distanceValue').textContent = distance;
+    document.getElementById('distanceValue').textContent = `${distanceLE} / ${distanceBE}`;
     document.getElementById('timestamp').textContent = new Date().toLocaleString();
-    }
+}
+
 
 
 
