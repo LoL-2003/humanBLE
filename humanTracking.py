@@ -17,11 +17,10 @@ async function connectToBLE() {
         await sensorCharacteristic.startNotifications();
         sensorCharacteristic.addEventListener('characteristicvaluechanged', handleData);
 
-        console.log("✅ Connected to ESP32");
         document.getElementById("bleState").innerText = "Connected to ESP32";
         document.getElementById("bleState").style.color = "green";
     } catch (error) {
-        console.error("❌ Connection failed: ", error);
+        console.error("Connection failed: ", error);
     }
 }
 
@@ -30,7 +29,7 @@ async function disconnectBLE() {
         await bleDevice.gatt.disconnect();
         document.getElementById("bleState").innerText = "Disconnected";
         document.getElementById("bleState").style.color = "red";
-        console.log("✅ Disconnected");
+        console.log("Disconnected");
     }
 }
 
@@ -46,7 +45,7 @@ async function handleData(event) {
     let speed = dataView.getInt8(4);
     let distance = dataView.getUint16(5, true);
 
-    console.log(`✅ Decoded Data: X=${x}, Y=${y}, Speed=${speed}, Distance=${distance}`);
+    console.log(`Decoded Data: X=${x}, Y=${y}, Speed=${speed}, Distance=${distance}`);
 
     document.getElementById("xValueContainer").textContent = x;
     document.getElementById("yValueContainer").textContent = y;
@@ -61,8 +60,8 @@ async function toggleLED(state) {
         const ledCharacteristic = await service.getCharacteristic(LED_CHARACTERISTIC_UUID);
         let data = new Uint8Array([state]);
         await ledCharacteristic.writeValue(data);
-        console.log(`✅ LED ${state ? "ON" : "OFF"}`);
+        console.log(`LED ${state ? "ON" : "OFF"}`);
     } catch (error) {
-        console.error("❌ Failed to toggle LED: ", error);
+        console.error("Failed to toggle LED: ", error);
     }
 }
