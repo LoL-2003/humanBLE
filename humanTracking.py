@@ -53,11 +53,6 @@ html("""
             text-align: center;
             padding-top: 10px;
         }
-
-        .st-emotion-cache-cio0dv {
-            padding-left: 20%;
-            padding-right: 1rem;
-        }
     </style>
 </head>
 <body>
@@ -157,12 +152,12 @@ html("""
         const buffer = event.target.value.buffer;
         const dataView = new DataView(buffer);
 
-        console.log("Raw Data:", new Uint8Array(buffer)); // Debug
+        console.log("Raw Data:", new Uint8Array(buffer)); // Debugging
 
-        let x = dataView.getInt32(0, true);
+        let x = dataView.getInt32(0, true);  // Little-endian (ESP32 format)
         let y = dataView.getInt32(4, true);
-        let speed = dataView.getUint8(8) & 0x0F;  // Fixed Speed Extraction
-        let distance = dataView.getUint16(9, false);  // Fixed Endianness
+        let speed = dataView.getUint8(8);  // Fixed speed extraction
+        let distance = dataView.getUint16(9, true);  // FIXED distance extraction (Little-endian)
 
         xValueContainer.textContent = x;
         yValueContainer.textContent = y;
