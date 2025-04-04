@@ -162,8 +162,7 @@ async function handleData(event) {
     let speed = dataView.getInt8(8);      // 1 byte (Signed)
 
     // Try both endian formats and see which works
-    let distance_LE = dataView.getUint16(10, true);  // Little-Endian
-    let distance_BE = dataView.getUint16(10, false); // Big-Endian
+    let distance = dataView.getUint16(10, true);  // Little-Endian
 
     console.log(`Extracted Values (LE):distance_LE=${distance_LE}`);
     console.log(`Extracted Values (BE):distance_BE=${distance_BE}`);
