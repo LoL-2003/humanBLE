@@ -246,15 +246,15 @@ html("""
     #appContainer {
       display: flex;
       flex-direction: column;
-      height: 100%;
-      width: 100%;
+      height: 100vh;
+      width: 100vw;
     }
     #canvasContainer {
       flex-grow: 1;
     }
     canvas {
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
       background: #2c2c2c;
       display: block;
     }
@@ -282,6 +282,49 @@ html("""
     .status-connected { color: #66bb6a; }
     .status-disconnected { color: #ef5350; }
     .value-label { color: #03dac6; margin-right: 5px; }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 60px;
+      height: 34px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 26px;
+      width: 26px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+    }
+    input:checked + .slider {
+      background-color: #2196F3;
+    }
+    input:checked + .slider:before {
+      transform: translateX(26px);
+    }
+    .slider.round {
+      border-radius: 34px;
+    }
+    .slider.round:before {
+      border-radius: 50%;
+    }
   </style>
 </head>
 <body>
@@ -292,6 +335,11 @@ html("""
     <div id="controls">
       <button id="connectBleButton">Connect to BLE Device</button>
       <button id="disconnectBleButton">Disconnect</button>
+      <label class="switch">
+        <input type="checkbox" id="ledToggle">
+        <span class="slider round"></span>
+      </label>
+      <p>Last value sent: <span id="valueSent"></span></p>
       <span>BLE state: <strong><span id="bleState" class="status-disconnected">Disconnected</span></strong></span>
       <span><span class="value-label">X:</span><span id="valX">NaN</span></span>
       <span><span class="value-label">Y:</span><span id="valY">NaN</span></span>
@@ -311,17 +359,20 @@ html("""
     const bleStateContainer = document.getElementById('bleState');
     const connectButton = document.getElementById('connectBleButton');
     const disconnectButton = document.getElementById('disconnectBleButton');
+    const ledToggle = document.getElementById('ledToggle');
+    const valueSent = document.getElementById('valueSent');
 
     let previousPoint = null;
-    let bleDevice, bleServer, bleService, sensorCharacteristic;
+    let bleDevice, bleServer, bleService, sensorCharacteristic, ledCharacteristic;
 
     const deviceName = 'ESP32';
     const bleServiceUUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
     const sensorCharacteristicUUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
+    const ledCharacteristicUUID = '19b10002-e8f2-537e-4f6c-d104768a1214';
 
     function resizeCanvas() {
-      canvas.width = canvas.clientWidth;
-      canvas.height = canvas.clientHeight;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
     }
 
     window.addEventListener('resize', resizeCanvas);
@@ -336,11 +387,9 @@ html("""
 
     function drawCurrentAndPrevious(newX, newY) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
       if (previousPoint) {
         drawPoint(previousPoint.x, previousPoint.y, '#888');
       }
-
       drawPoint(newX, newY);
     }
 
@@ -361,6 +410,7 @@ html("""
         bleServer = await bleDevice.gatt.connect();
         bleService = await bleServer.getPrimaryService(bleServiceUUID);
         sensorCharacteristic = await bleService.getCharacteristic(sensorCharacteristicUUID);
+        ledCharacteristic = await bleService.getCharacteristic(ledCharacteristicUUID);
 
         sensorCharacteristic.addEventListener('characteristicvaluechanged', handleData);
         await sensorCharacteristic.startNotifications();
@@ -410,6 +460,18 @@ html("""
       valDistance.textContent = distance;
       valTime.textContent = new Date().toLocaleTimeString();
     }
+
+    async function sendLedCommand(value) {
+      if (ledCharacteristic) {
+        const buffer = new Uint8Array([value]);
+        await ledCharacteristic.writeValue(buffer);
+        valueSent.textContent = value === 1 ? "ON" : "OFF";
+      }
+    }
+
+    ledToggle.addEventListener('change', () => {
+      sendLedCommand(ledToggle.checked ? 1 : 0);
+    });
 
     connectButton.addEventListener('click', connectToDevice);
     disconnectButton.addEventListener('click', disconnectDevice);
