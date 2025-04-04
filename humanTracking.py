@@ -221,35 +221,27 @@
 
 import streamlit as st
 from streamlit.components.v1 import html
-from streamlit_js_eval import streamlit_js_eval
 import plotly.graph_objects as go
 import pandas as pd
 import time
 import json
+import os
 
 st.set_page_config(page_title="Human-Tracking", layout="wide")
 st.title("Human-Tracking")
 
 tabs = st.tabs(["BLE Interface", "Graphical Tracking"])
 
-# Shared state using session_state if not already set
-if 'data' not in st.session_state:
-    st.session_state.data = []
+# Shared JSON file path
+data_file = "ble_data.json"
+
+# Ensure the file exists
+if not os.path.exists(data_file):
+    with open(data_file, "w") as f:
+        json.dump([], f)
 
 with tabs[0]:
     html("""
-    <script>
-    window.addEventListener("message", (event) => {
-        if (event.data?.type === "ble_data") {
-            const payload = event.data;
-            const pybridge = window.parent?.streamlitWebSocket;
-            if (pybridge) {
-                pybridge.send(JSON.stringify({ type: "streamlit:ble_data", data: payload }));
-            }
-        }
-    });
-    </script>
-    
     <!DOCTYPE html>
     <html>
     <head>
@@ -348,39 +340,35 @@ with tabs[0]:
             distanceContainer.textContent = distance;
             timestampContainer.textContent = new Date().toLocaleTimeString();
 
-            window.parent.postMessage({ type: "ble_data", x, y, speed, distance }, '*');
+            fetch("/ble_update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ x, y, speed, distance, time: Date.now() })
+            });
         }
       </script>
     </body>
     </html>
     """, height=800)
 
-# Receive messages from JS via session_state updates
-data_raw = st.session_state.get("ble_data_listener")
-if data_raw and isinstance(data_raw, dict):
-    payload = data_raw.get("data")
-    if payload:
-        st.session_state.data.append({
-            'time': time.time(),
-            'x': payload.get('x', 0),
-            'y': payload.get('y', 0),
-            'speed': payload.get('speed', 0),
-            'distance': payload.get('distance', 0)
-        })
-
 with tabs[1]:
     st.header("Live Target Tracking")
-    if st.session_state.data:
-        df = pd.DataFrame(st.session_state.data)
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=df['x'], y=df['y'], mode='markers+lines', name='Target Path'))
-        fig.update_layout(
-            xaxis_title='X Position',
-            yaxis_title='Y Position',
-            title='Live Movement Graph',
-            template='plotly_dark',
-            height=600
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No data received yet. Connect BLE device to begin tracking.")
+    try:
+        with open(data_file, "r") as f:
+            data = json.load(f)
+        if data:
+            df = pd.DataFrame(data)
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=df['x'], y=df['y'], mode='markers+lines', name='Target Path'))
+            fig.update_layout(
+                xaxis_title='X Position',
+                yaxis_title='Y Position',
+                title='Live Movement Graph',
+                template='plotly_dark',
+                height=600
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No data in JSON file yet.")
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
