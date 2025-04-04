@@ -258,6 +258,31 @@ def load_ble_data():
             return []
     return []
 
+# Serve data endpoint
+import streamlit.web.server.websocket_headers
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from starlette.middleware.cors import CORSMiddleware
+from streamlit.web.server import Server
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.post("/ble-data")
+async def ble_data_handler(request: Request):
+    body = await request.json()
+    save_ble_data(body)
+    return JSONResponse(content={"status": "success"})
+
+Server.get_current()._main_app.mount("/ble-data", app)
+
 # Tabs
 tabs = st.tabs(["BLE Interface", "Graphical Tracking"])
 
