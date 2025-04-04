@@ -165,8 +165,8 @@ async function handleData(event) {
     let distance_LE = dataView.getUint16(10, true);  // Little-Endian
     let distance_BE = dataView.getUint16(10, false); // Big-Endian
 
-    console.log(`Extracted Values (LE): X=${x}, Y=${y}, Speed=${speed}, Distance=${distance_LE}`);
-    console.log(`Extracted Values (BE): X=${x}, Y=${y}, Speed=${speed}, Distance=${distance_BE}`);
+    console.log(`Extracted Values (LE):distance_LE=${distance_LE}`);
+    console.log(`Extracted Values (BE):distance_BE=${distance_BE}`);
 
     // Display values
     document.getElementById('xValue').textContent = x;
