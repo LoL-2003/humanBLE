@@ -230,6 +230,7 @@ html(f"""
       const x = dataView.getInt32(0, true);
       const y = dataView.getInt32(4, true);
       const distance = Math.sqrt(x*x + y*y);
+      let speed = dataView.getInt8(8);      // 1 byte (Signed)
       const angle = Math.atan2(y, x) * (180 / Math.PI);
 
       const scaledX = canvas.width / 2 + x;
@@ -242,6 +243,7 @@ html(f"""
       valY.textContent = y;
       valDistance.textContent = distance.toFixed(2);
       valAngle.textContent = angle.toFixed(2) + "°";
+      valSpeed.textContent = speed;
       valTime.textContent = new Date().toLocaleTimeString();
     }}
 
