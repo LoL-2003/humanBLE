@@ -135,7 +135,6 @@ html(f"""
     const valX = document.getElementById('valX');
     const valY = document.getElementById('valY');
     const valSpeed = document.getElementById('valSpeed');
-    console.log(valSpeed);
     const valDistance = document.getElementById('valDistance');
     const valAngle = document.getElementById('valAngle');
     const valTime = document.getElementById('valTime');
