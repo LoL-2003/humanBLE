@@ -493,7 +493,6 @@
 
 
 import streamlit as st
-import math
 from streamlit.components.v1 import html
 
 st.set_page_config(page_title="Human-Tracking", layout="centered")
@@ -508,7 +507,7 @@ html(f"""
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Graphical BLE Data Display</title>
   <style>
-    html, body {
+    html, body {{
       margin: 0;
       padding: 0;
       width: 100%;
@@ -516,23 +515,23 @@ html(f"""
       background-color: #1e1e1e;
       color: white;
       font-family: Arial, sans-serif;
-    }
-    #appContainer {
+    }}
+    #appContainer {{
       display: flex;
       flex-direction: column;
       height: 100vh;
       width: 100vw;
-    }
-    #canvasContainer {
+    }}
+    #canvasContainer {{
       flex-grow: 1;
-    }
-    canvas {
+    }}
+    canvas {{
       width: 100vw;
       height: 100vh;
       background: #2c2c2c;
       display: block;
-    }
-    #controls {
+    }}
+    #controls {{
       position: absolute;
       top: 10px;
       left: 10px;
@@ -540,8 +539,8 @@ html(f"""
       padding: 10px;
       border-radius: 8px;
       z-index: 10;
-    }
-    button {
+    }}
+    button {{
       background-color: #1f1f1f;
       color: #ffffff;
       border: 1px solid #444;
@@ -550,25 +549,25 @@ html(f"""
       border-radius: 6px;
       cursor: pointer;
       transition: background 0.3s ease;
-    }
-    button:hover {
+    }}
+    button:hover {{
       background-color: #333333;
-    }
-    .status-connected { color: #66bb6a; }
-    .status-disconnected { color: #ef5350; }
-    .value-label { color: #03dac6; margin-right: 5px; }
-    .switch {
+    }}
+    .status-connected {{ color: #66bb6a; }}
+    .status-disconnected {{ color: #ef5350; }}
+    .value-label {{ color: #03dac6; margin-right: 5px; }}
+    .switch {{
       position: relative;
       display: inline-block;
       width: 60px;
       height: 34px;
-    }
-    .switch input {
+    }}
+    .switch input {{
       opacity: 0;
       width: 0;
       height: 0;
-    }
-    .slider {
+    }}
+    .slider {{
       position: absolute;
       cursor: pointer;
       top: 0;
@@ -577,8 +576,8 @@ html(f"""
       bottom: 0;
       background-color: #ccc;
       transition: .4s;
-    }
-    .slider:before {
+    }}
+    .slider:before {{
       position: absolute;
       content: "";
       height: 26px;
@@ -587,19 +586,19 @@ html(f"""
       bottom: 4px;
       background-color: white;
       transition: .4s;
-    }
-    input:checked + .slider {
+    }}
+    input:checked + .slider {{
       background-color: #2196F3;
-    }
-    input:checked + .slider:before {
+    }}
+    input:checked + .slider:before {{
       transform: translateX(26px);
-    }
-    .slider.round {
+    }}
+    .slider.round {{
       border-radius: 34px;
-    }
-    .slider.round:before {
+    }}
+    .slider.round:before {{
       border-radius: 50%;
-    }
+    }}
   </style>
 </head>
 <body>
@@ -640,11 +639,12 @@ html(f"""
     const valueSent = document.getElementById('valueSent');
 
     let previousPoint = null;
-    let bleDevice, bleServer, bleService, sensorCharacteristic;
+    let bleDevice, bleServer, bleService, sensorCharacteristic, ledCharacteristic;
     
     const deviceName = 'ESP32';
     const bleServiceUUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
     const sensorCharacteristicUUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
+    const ledCharacteristicUUID = '19b10002-e8f2-537e-4f6c-d104768a1214'; // optional LED control
 
     function resizeCanvas() {{
       canvas.width = window.innerWidth;
@@ -689,6 +689,7 @@ html(f"""
         bleServer = await bleDevice.gatt.connect();
         bleService = await bleServer.getPrimaryService(bleServiceUUID);
         sensorCharacteristic = await bleService.getCharacteristic(sensorCharacteristicUUID);
+        ledCharacteristic = await bleService.getCharacteristic(ledCharacteristicUUID).catch(() => null); // optional
         sensorCharacteristic.addEventListener('characteristicvaluechanged', handleData);
         await sensorCharacteristic.startNotifications();
 
@@ -748,11 +749,11 @@ html(f"""
       }}
     }}
 
-
-    ledToggle.addEventListener('change', () => {
+    ledToggle.addEventListener('change', () => {{
       sendLedCommand(ledToggle.checked ? 1 : 0);
-    });
+    }});
   </script>
 </body>
 </html>
 """, height=800)
+
