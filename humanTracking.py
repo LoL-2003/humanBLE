@@ -740,13 +740,14 @@ html(f"""
     connectButton.addEventListener('click', connectToDevice);
     disconnectButton.addEventListener('click', disconnectDevice);
 
-    async function sendLedCommand(value) {
-      if (ledCharacteristic) {
+    async function sendLedCommand(value) {{
+      if (ledCharacteristic) {{
         const buffer = new Uint8Array([value]);
         await ledCharacteristic.writeValue(buffer);
         valueSent.textContent = value === 1 ? "ON" : "OFF";
-      }
-    }
+      }}
+    }}
+
 
     ledToggle.addEventListener('change', () => {
       sendLedCommand(ledToggle.checked ? 1 : 0);
